@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Badminton Round Robin Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">🏸</div>
+        <div class="brand-text">
+          <h2>SmashTracker</h2>
+          <span>Round Robin Portal</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="leaderboard">
+          <span class="icon">🏆</span>
+          <span class="label">Leaderboard</span>
+        </button>
+        <button class="nav-item" data-tab="finder">
+          <span class="icon">🎯</span>
+          <span class="label">Matchup Finder</span>
+          <span class="badge">4-Player</span>
+        </button>
+        <button class="nav-item" data-tab="players">
+          <span class="icon">👥</span>
+          <span class="label">Players</span>
+        </button>
+        <button class="nav-item" data-tab="fixtures">
+          <span class="icon">📋</span>
+          <span class="label">All Fixtures</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="data-actions">
+          <button id="exportBtn" class="btn-secondary" title="Export tournament JSON">💾 Export</button>
+          <button id="importBtn" class="btn-secondary" title="Import tournament JSON">📂 Import</button>
+          <input type="file" id="importFileInput" accept=".json" style="display: none;">
+        </div>
+        <button id="resetBtn" class="btn-ghost" title="Reset back to initial tournament HTML state">↺ Reset Data</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Header Banner -->
+      <header class="app-header">
+        <div class="header-titles">
+          <h1 id="pageTitle">Tournament Leaderboard</h1>
+          <p id="pageSubtitle">Live statistics and rankings for singles players and pairs</p>
+        </div>
+        <div class="header-metrics">
+          <div class="metric-card">
+            <span class="metric-label">Played</span>
+            <span class="metric-val" id="metricPlayed">72</span>
+            <span class="metric-sub" id="metricPlayedSub">of 1,890 games</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Active Players</span>
+            <span class="metric-val" id="metricPlayers">10</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Pairs</span>
+            <span class="metric-val" id="metricPairs">45</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- TAB 1: LEADERBOARD -->
+      <section id="tab-leaderboard" class="tab-pane active">
+        <div class="tab-subnav">
+          <button class="sub-tab-btn active" data-subtab="players-board">Individual Players</button>
+          <button class="sub-tab-btn" data-subtab="pairs-board">Pairs Standings</button>
+        </div>
+
+        <!-- Players Leaderboard -->
+        <div id="subtab-players-board" class="subtab-pane active">
+          <div class="toolbar">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="playerSearch" placeholder="Search player...">
+            </div>
+            <div class="sort-controls">
+              <label>Sort by:</label>
+              <select id="playerSortSelect">
+                <option value="wins">Most Wins</option>
+                <option value="win_pct">Win %</option>
+                <option value="pts">Total Points Won</option>
+                <option value="pts_avg">Avg Points / Match</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-card">
+            <table class="data-table" id="playersTable">
+              <thead>
+                <tr>
+                  <th style="width: 60px;">Rank</th>
+                  <th>Player</th>
+                  <th>Played</th>
+                  <th>Won</th>
+                  <th>Lost</th>
+                  <th>Win %</th>
+                  <th>Pts Scored</th>
+                  <th>Avg Pts</th>
+                  <th>Remaining</th>
+                </tr>
+              </thead>
+              <tbody id="playersTableBody">
+                <!-- Injected by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pairs Leaderboard -->
+        <div id="subtab-pairs-board" class="subtab-pane">
+          <div class="toolbar">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="pairSearch" placeholder="Filter pairs (e.g. Arvind)...">
+            </div>
+            <div class="sort-controls">
+              <label>Sort by:</label>
+              <select id="pairSortSelect">
+                <option value="wins">Most Wins</option>
+                <option value="win_pct">Win %</option>
+                <option value="played">Most Played</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-card">
+            <table class="data-table" id="pairsTable">
+              <thead>
+                <tr>
+                  <th style="width: 60px;">Rank</th>
+                  <th>Pair</th>
+                  <th>Played</th>
+                  <th>Won</th>
+                  <th>Lost</th>
+                  <th>Win %</th>
+                  <th>Matches Left</th>
+                </tr>
+              </thead>
+              <tbody id="pairsTableBody">
+                <!-- Injected by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: MATCHUP FINDER (4 PLAYERS) -->
+      <section id="tab-finder" class="tab-pane">
+        <div class="card intro-card">
+          <h2>🎯 Today's Court Matchup Finder</h2>
+          <p>Select any 4 players who are present on court. The algorithm will show all 3 possible doubles combinations, how many games they have already played, and which games are <strong>still pending</strong> to be played!</p>
+        </div>
+
+        <div class="card selection-card">
+          <h3>Choose 4 Players</h3>
+          <div class="player-selectors-grid">
+            <div class="selector-group">
+              <label>Player 1</label>
+              <select id="finderP1" class="player-dropdown"></select>
+            </div>
+            <div class="selector-group">
+              <label>Player 2</label>
+              <select id="finderP2" class="player-dropdown"></select>
+            </div>
+            <div class="selector-group">
+              <label>Player 3</label>
+              <select id="finderP3" class="player-dropdown"></select>
+            </div>
+            <div class="selector-group">
+              <label>Player 4</label>
+              <select id="finderP4" class="player-dropdown"></select>
+            </div>
+          </div>
+          <div class="selection-actions">
+            <button id="findMatchupsBtn" class="btn-primary">⚡ Generate Matchups</button>
+            <button id="clearFinderBtn" class="btn-secondary">Clear</button>
+          </div>
+        </div>
+
+        <!-- Results of 4-Player Combinations -->
+        <div id="finderResults" class="finder-results-section" style="display: none;">
+          <div class="section-header">
+            <h3>Possible Doubles Matchups for Selected Players</h3>
+            <span class="badge" id="finderMatchCount">3 Matchups</span>
+          </div>
+
+          <div class="matchup-cards-grid" id="matchupCardsContainer">
+            <!-- Injected by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: PLAYERS & ADD NEW PLAYER -->
+      <section id="tab-players" class="tab-pane">
+        <div class="players-layout">
+          <!-- Add Player Form -->
+          <div class="card add-player-card">
+            <h3>➕ Add New Player</h3>
+            <p class="muted">Add a new player to the tournament. All round-robin matchups with all existing players will automatically be scheduled!</p>
+            <form id="addPlayerForm">
+              <div class="form-group">
+                <label for="newPlayerName">Player Name</label>
+                <input type="text" id="newPlayerName" placeholder="e.g. Ramesh" required>
+              </div>
+              <button type="submit" class="btn-primary">Add Player & Generate Matchups</button>
+            </form>
+          </div>
+
+          <!-- Existing Players Roster -->
+          <div class="card player-roster-card">
+            <div class="roster-header">
+              <h3>Roster (<span id="rosterCount">10</span> Players)</h3>
+              <p class="muted">Click any player to view their partners and game breakdown</p>
+            </div>
+            <div class="roster-grid" id="rosterGrid">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Selected Player Modal/Drawer -->
+        <div id="playerDetailCard" class="card player-detail-card" style="display: none; margin-top: 24px;">
+          <div class="detail-header">
+            <h3 id="detailPlayerName">Player Details</h3>
+            <button class="btn-ghost" id="closeDetailBtn">✕ Close</button>
+          </div>
+          <div id="detailPlayerContent"></div>
+        </div>
+      </section>
+
+      <!-- TAB 4: FIXTURES & SCORE RECORDER -->
+      <section id="tab-fixtures" class="tab-pane">
+        <div class="toolbar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="fixtureSearch" placeholder="Search by team or player name...">
+          </div>
+          <div class="filter-controls">
+            <select id="fixtureStatusFilter">
+              <option value="all">All Matchups</option>
+              <option value="pending">Pending Games Available</option>
+              <option value="completed">Fully Completed (3/3)</option>
+              <option value="not_started">Not Started (0/3)</option>
+              <option value="in_progress">In Progress (1 or 2 played)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="fixtures-grid" id="fixturesContainer">
+          <!-- Injected by JS -->
+        </div>
+
+        <div class="pagination-controls" id="fixturePagination">
+          <button id="prevPageBtn" class="btn-secondary">Previous</button>
+          <span id="pageIndicator" class="muted">Page 1</span>
+          <button id="nextPageBtn" class="btn-secondary">Next</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Score Recording Modal -->
+  <div class="modal-overlay" id="scoreModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalMatchTitle">Record Game Score</h3>
+        <button class="modal-close" id="closeModalBtn">✕</button>
+      </div>
+      <form id="recordGameForm">
+        <input type="hidden" id="modalMatchId">
+        <input type="hidden" id="modalGameNum">
+        
+        <div class="modal-teams-display">
+          <div class="team-block team-1">
+            <span class="team-label">Team 1</span>
+            <h4 id="modalTeam1Name">Team 1</h4>
+            <div class="score-input-wrap">
+              <input type="number" id="team1Score" min="0" max="40" placeholder="Score" required>
+            </div>
+          </div>
+          
+          <div class="vs-badge">VS</div>
+
+          <div class="team-block team-2">
+            <span class="team-label">Team 2</span>
+            <h4 id="modalTeam2Name">Team 2</h4>
+            <div class="score-input-wrap">
+              <input type="number" id="team2Score" min="0" max="40" placeholder="Score" required>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px;">
+          <label>Game Winner</label>
+          <select id="modalWinnerSelect" required>
+            <option value="">-- Choose Winner --</option>
+            <option id="modalOptTeam1" value="team1">Team 1</option>
+            <option id="modalOptTeam2" value="team2">Team 2</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="modalGameNotes" placeholder="e.g. Close deuce, played on Court 2">
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary">Save Score & Update Leaderboard</button>
+          <button type="button" class="btn-secondary" id="cancelModalBtn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Load Data and App Engine -->
+  <script src="tournament_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
