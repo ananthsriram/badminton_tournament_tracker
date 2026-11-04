@@ -1,9 +1,16 @@
 /**
  * Badminton Round Robin Tournament Engine
- * Client-side Reactive Architecture with LocalStorage Persistence
+ * Real-time Supabase Cloud Synchronization with LocalStorage Fallback
  */
 
 const STORAGE_KEY = 'badminton_round_robin_v1';
+const SUPABASE_URL = 'https://bbxxgstfkpvhpzsuidtu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_y1rGkm8ZK13_hMkSrGzgzw_Z5yk82Ra';
+const TOURNAMENT_ROW_ID = 'current_tournament';
+
+// Supabase client instance
+let supabaseClient = null;
+let isRemoteUpdating = false;
 
 // App State
 let state = {
@@ -12,14 +19,157 @@ let state = {
 };
 
 // Tournament initialization
-function initApp() {
-  loadData();
+async function initApp() {
+  loadLocalData();
   setupEventListeners();
   renderAll();
+  initSupabase();
+}
+
+function updateSyncStatus(status, text) {
+  const badge = document.getElementById('syncStatusBadge');
+  if (!badge) return;
+  badge.className = `sync-badge sync-${status}`;
+  badge.textContent = `● ${text}`;
+}
+
+// Initialize Supabase & Realtime Subscription
+async function initSupabase() {
+  if (typeof window.supabase === 'undefined') {
+    console.warn('Supabase JS library not loaded, running in offline mode');
+    updateSyncStatus('offline', 'Offline Storage');
+    return;
+  }
+
+  try {
+    updateSyncStatus('connecting', 'Connecting...');
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Try fetching from normalized tables (matches + games)
+    // Only games that have a winner (played) or scores need to be updated into state
+    const { data: gamesData, error: gamesError } = await supabaseClient
+      .from('games')
+      .select('match_id, game_num, winner, t1_score, t2_score, played_date, played_at')
+      .not('winner', 'is', null)
+      .neq('winner', '')
+      .order('match_id', { ascending: true });
+
+    if (!gamesError && gamesData) {
+      console.log('Connected to normalized Supabase tables! Games loaded:', gamesData.length);
+      
+      // Update state with games from normalized table
+      const gamesByMatch = {};
+      gamesData.forEach(g => {
+        if (!gamesByMatch[g.match_id]) gamesByMatch[g.match_id] = [];
+        gamesByMatch[g.match_id].push({
+          game_num: g.game_num,
+          winner: g.winner || '',
+          t1_score: g.t1_score,
+          t2_score: g.t2_score,
+          played_date: g.played_date || null,
+          played_at: g.played_at || null
+        });
+      });
+
+      // Update state.matches with fetched played games
+      state.matches.forEach(m => {
+        if (gamesByMatch[m.id]) {
+          gamesByMatch[m.id].forEach(fetchedGame => {
+            const localGame = m.games.find(g => g.game_num === fetchedGame.game_num);
+            if (localGame) {
+              localGame.winner = fetchedGame.winner;
+              localGame.t1_score = fetchedGame.t1_score;
+              localGame.t2_score = fetchedGame.t2_score;
+              localGame.played_date = fetchedGame.played_date;
+              localGame.played_at = fetchedGame.played_at;
+            }
+          });
+          let t1Wins = 0, t2Wins = 0, played = 0;
+          m.games.forEach(g => {
+            if (g.winner) {
+              played++;
+              if (normalizePair(g.winner) === normalizePair(m.team1)) t1Wins++;
+              else if (normalizePair(g.winner) === normalizePair(m.team2)) t2Wins++;
+            }
+          });
+          m.team1_wins = t1Wins;
+          m.team2_wins = t2Wins;
+          m.status = played === 3 ? 'Completed' : (played > 0 ? `${played} of 3 played` : 'Not started');
+        }
+      });
+
+      saveLocalData();
+      renderAll();
+      updateSyncStatus('live', 'Live Cloud Sync');
+
+      // Listen to Realtime updates on 'games'
+      supabaseClient
+        .channel('public:games')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, payload => {
+          if (payload.new && payload.new.match_id) {
+            const updatedMatch = state.matches.find(m => m.id === payload.new.match_id);
+            if (updatedMatch) {
+              const targetGame = updatedMatch.games.find(g => g.game_num === payload.new.game_num);
+              if (targetGame) {
+                targetGame.winner = payload.new.winner || '';
+                targetGame.t1_score = payload.new.t1_score;
+                targetGame.t2_score = payload.new.t2_score;
+                targetGame.played_date = payload.new.played_date;
+                targetGame.played_at = payload.new.played_at;
+
+                // Recount wins
+                let t1Wins = 0, t2Wins = 0, played = 0;
+                updatedMatch.games.forEach(g => {
+                  if (g.winner) {
+                    played++;
+                    if (normalizePair(g.winner) === normalizePair(updatedMatch.team1)) t1Wins++;
+                    else if (normalizePair(g.winner) === normalizePair(updatedMatch.team2)) t2Wins++;
+                  }
+                });
+                updatedMatch.team1_wins = t1Wins;
+                updatedMatch.team2_wins = t2Wins;
+                updatedMatch.status = played === 3 ? 'Completed' : (played > 0 ? `${played} of 3 played` : 'Not started');
+
+                saveLocalData();
+                renderAll();
+                const finderResults = document.getElementById('finderResults');
+                if (finderResults && finderResults.style.display !== 'none') {
+                  find4PlayerMatchups();
+                }
+                showToast(`⚡ Match #${updatedMatch.id} Game ${targetGame.game_num} updated live!`);
+              }
+            }
+          }
+        })
+        .subscribe();
+
+      return;
+    }
+
+    // Fallback: Check monolithic 'tournament' table if normalized tables aren't queried yet
+    const { data, error } = await supabaseClient
+      .from('tournament')
+      .select('data')
+      .eq('id', TOURNAMENT_ROW_ID)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Supabase fetch error:', error);
+      updateSyncStatus('offline', 'Local Cache');
+    } else if (data && data.data && data.data.players && data.data.matches) {
+      state = data.data;
+      saveLocalData();
+      renderAll();
+      updateSyncStatus('live', 'Live Cloud Sync');
+    }
+  } catch (err) {
+    console.error('Supabase initialization failed:', err);
+    updateSyncStatus('offline', 'Offline Storage');
+  }
 }
 
 // Load from LocalStorage or Fallback to INITIAL_TOURNAMENT_DATA
-function loadData() {
+function loadLocalData() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
@@ -31,20 +181,47 @@ function loadData() {
     }
   } else {
     state = JSON.parse(JSON.stringify(INITIAL_TOURNAMENT_DATA));
-    saveData();
+    saveLocalData();
   }
 }
 
-function saveData() {
+function saveLocalData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+// Save data locally and push to Supabase Cloud
+async function saveData() {
+  saveLocalData();
+
+  if (supabaseClient) {
+    try {
+      isRemoteUpdating = true;
+      updateSyncStatus('saving', 'Syncing...');
+      const { error } = await supabaseClient
+        .from('tournament')
+        .upsert({ id: TOURNAMENT_ROW_ID, data: state, updated_at: new Date().toISOString() });
+
+      if (error) {
+        console.error('Failed to sync to Supabase:', error);
+        updateSyncStatus('offline', 'Local only (Sync fail)');
+      } else {
+        updateSyncStatus('live', 'Live Cloud Sync');
+      }
+    } catch (err) {
+      console.error('Cloud save exception:', err);
+      updateSyncStatus('offline', 'Offline (Saved locally)');
+    } finally {
+      setTimeout(() => { isRemoteUpdating = false; }, 400);
+    }
+  }
+}
+
 // Reset to initial HTML state
-function resetData() {
-  if (confirm('Are you sure you want to reset all tournament data back to the original spreadsheet numbers?')) {
+async function resetData() {
+  if (confirm('Are you sure you want to reset all tournament data back to the original spreadsheet numbers? This will reset data for all connected players.')) {
     localStorage.removeItem(STORAGE_KEY);
     state = JSON.parse(JSON.stringify(INITIAL_TOURNAMENT_DATA));
-    saveData();
+    await saveData();
     renderAll();
     showToast('Data reset to original tournament sheet');
   }
@@ -200,6 +377,8 @@ function renderAll() {
   renderRoster(stats.players);
   populateFinderDropdowns();
   renderFixtures();
+  populateDailyPlayerFilter();
+  renderDailyMatches();
 }
 
 function renderMetrics(stats) {
@@ -406,82 +585,175 @@ function showPlayerDetail(playerName) {
   card.scrollIntoView({ behavior: 'smooth' });
 }
 
-// Tab 2: 4-Player Matchup Finder
+// Tab 2: Court Matchup Finder (Supports 4 or more players)
+let finderSelectedPlayers = new Set();
+
 function populateFinderDropdowns() {
-  const selectors = ['finderP1', 'finderP2', 'finderP3', 'finderP4'];
-  selectors.forEach((id, idx) => {
-    const sel = document.getElementById(id);
-    const prevVal = sel.value;
-    sel.innerHTML = '<option value="">-- Choose Player --</option>';
-    state.players.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p;
-      opt.textContent = p;
-      sel.appendChild(opt);
-    });
-    // Set smart default if available
-    if (prevVal && state.players.includes(prevVal)) {
-      sel.value = prevVal;
-    } else if (state.players[idx]) {
-      sel.value = state.players[idx];
-    }
+  const container = document.getElementById('finderPlayerChips');
+  if (!container) return;
+
+  // Preserve selections that still exist in players roster
+  const validSelections = new Set();
+  finderSelectedPlayers.forEach(p => {
+    if (state.players.includes(p)) validSelections.add(p);
   });
+
+  // If initial load and empty, default to first 4 players
+  if (validSelections.size === 0 && state.players.length >= 4) {
+    state.players.slice(0, 4).forEach(p => validSelections.add(p));
+  }
+  finderSelectedPlayers = validSelections;
+
+  container.innerHTML = '';
+  state.players.forEach(p => {
+    const isSelected = finderSelectedPlayers.has(p);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `player-chip ${isSelected ? 'selected' : ''}`;
+    chip.innerHTML = `
+      <span class="chip-check">${isSelected ? '✓' : ''}</span>
+      <span class="chip-name">${p}</span>
+    `;
+    chip.addEventListener('click', () => {
+      if (finderSelectedPlayers.has(p)) {
+        finderSelectedPlayers.delete(p);
+      } else {
+        finderSelectedPlayers.add(p);
+      }
+      updateFinderSelectionUI();
+    });
+    container.appendChild(chip);
+  });
+
+  updateFinderSelectionCount();
+}
+
+function updateFinderSelectionUI() {
+  const container = document.getElementById('finderPlayerChips');
+  if (!container) return;
+
+  const chips = container.querySelectorAll('.player-chip');
+  chips.forEach(chip => {
+    const name = chip.querySelector('.chip-name').textContent;
+    const isSelected = finderSelectedPlayers.has(name);
+    chip.classList.toggle('selected', isSelected);
+    chip.querySelector('.chip-check').textContent = isSelected ? '✓' : '';
+  });
+
+  updateFinderSelectionCount();
+}
+
+function updateFinderSelectionCount() {
+  const countEl = document.getElementById('finderSelectedCount');
+  if (!countEl) return;
+  const count = finderSelectedPlayers.size;
+  if (count < 4) {
+    countEl.textContent = `${count} selected (select at least 4)`;
+    countEl.style.color = 'var(--accent-amber)';
+  } else {
+    // Calculate total matchups: C(n, 4) * 3
+    // C(n, 4) = n * (n-1) * (n-2) * (n-3) / 24
+    const n = count;
+    const fourCombos = (n * (n - 1) * (n - 2) * (n - 3)) / 24;
+    const totalMatchups = fourCombos * 3;
+    countEl.textContent = `${count} selected (${totalMatchups} possible matchups)`;
+    countEl.style.color = 'var(--accent-primary)';
+  }
 }
 
 function find4PlayerMatchups() {
-  const p1 = document.getElementById('finderP1').value;
-  const p2 = document.getElementById('finderP2').value;
-  const p3 = document.getElementById('finderP3').value;
-  const p4 = document.getElementById('finderP4').value;
+  const chosen = Array.from(finderSelectedPlayers);
 
-  const chosen = [p1, p2, p3, p4].filter(Boolean);
-  const unique = new Set(chosen);
-
-  if (chosen.length < 4 || unique.size < 4) {
-    alert('Please select 4 distinct players who are present on court.');
+  if (chosen.length < 4) {
+    alert('Please select at least 4 players who are present on court.');
     return;
   }
 
-  // With 4 players {A, B, C, D}, the 3 doubles matchups are:
+  // Generate all 4-player subsets C(n, 4)
+  const subsetsOf4 = [];
+  function getSubsets(arr, k, start = 0, current = []) {
+    if (current.length === k) {
+      subsetsOf4.push([...current]);
+      return;
+    }
+    for (let i = start; i < arr.length; i++) {
+      current.push(arr[i]);
+      getSubsets(arr, k, i + 1, current);
+      current.pop();
+    }
+  }
+  getSubsets(chosen, 4);
+
+  // For each 4-player subset {A, B, C, D}, generate the 3 doubles matchups:
   // 1) (A & B) vs (C & D)
   // 2) (A & C) vs (B & D)
   // 3) (A & D) vs (B & C)
-  const playersArr = Array.from(unique);
-  const A = playersArr[0];
-  const B = playersArr[1];
-  const C = playersArr[2];
-  const D = playersArr[3];
-
-  const combinations = [
-    { team1: normalizePair(`${A} & ${B}`), team2: normalizePair(`${C} & ${D}`) },
-    { team1: normalizePair(`${A} & ${C}`), team2: normalizePair(`${B} & ${D}`) },
-    { team1: normalizePair(`${A} & ${D}`), team2: normalizePair(`${B} & ${C}`) }
-  ];
-
   const matchedFixtures = [];
+  const seenMatchIds = new Set();
 
-  combinations.forEach(combo => {
-    // Locate matchup in state.matches (check both orders)
-    const match = state.matches.find(m => {
-      const m1 = normalizePair(m.team1);
-      const m2 = normalizePair(m.team2);
-      return (m1 === combo.team1 && m2 === combo.team2) || (m1 === combo.team2 && m2 === combo.team1);
+  subsetsOf4.forEach(four => {
+    const [A, B, C, D] = four;
+    const combinations = [
+      { team1: normalizePair(`${A} & ${B}`), team2: normalizePair(`${C} & ${D}`) },
+      { team1: normalizePair(`${A} & ${C}`), team2: normalizePair(`${B} & ${D}`) },
+      { team1: normalizePair(`${A} & ${D}`), team2: normalizePair(`${B} & ${C}`) }
+    ];
+
+    combinations.forEach(combo => {
+      const match = state.matches.find(m => {
+        const m1 = normalizePair(m.team1);
+        const m2 = normalizePair(m.team2);
+        return (m1 === combo.team1 && m2 === combo.team2) || (m1 === combo.team2 && m2 === combo.team1);
+      });
+
+      if (match && !seenMatchIds.has(match.id)) {
+        seenMatchIds.add(match.id);
+        matchedFixtures.push(match);
+      }
     });
-
-    if (match) {
-      matchedFixtures.push(match);
-    } else {
-      console.warn('Could not find fixture for combination:', combo);
-    }
   });
 
-  renderFinderResults(matchedFixtures);
+  // Filter based on status dropdown
+  const statusFilterEl = document.getElementById('finderStatusFilter');
+  const statusFilter = statusFilterEl ? statusFilterEl.value : 'all';
+
+  const filteredFixtures = matchedFixtures.filter(m => {
+    const played = m.games.filter(g => g.winner).length;
+    if (statusFilter === 'pending') return played < 3;
+    if (statusFilter === 'completed') return played === 3;
+    if (statusFilter === 'not_started') return played === 0;
+    return true;
+  });
+
+  renderFinderResults(filteredFixtures, matchedFixtures.length, chosen.length);
 }
 
-function renderFinderResults(fixtures) {
+function renderFinderResults(fixtures, totalFound = fixtures.length, playerCount = 4) {
   const container = document.getElementById('matchupCardsContainer');
   const resultsSection = document.getElementById('finderResults');
+  const countBadge = document.getElementById('finderMatchCount');
+  const subtitle = document.getElementById('finderResultsSubtitle');
   container.innerHTML = '';
+
+  if (countBadge) {
+    countBadge.textContent = `${fixtures.length} Matchup${fixtures.length !== 1 ? 's' : ''}`;
+  }
+
+  if (subtitle) {
+    subtitle.textContent = `Showing ${fixtures.length} of ${totalFound} total doubles matchups among ${playerCount} present players.`;
+  }
+
+  if (fixtures.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 30px; text-align: center; background: rgba(0,0,0,0.2); border-radius: 12px; color: var(--text-muted);">
+        <p style="font-size: 1.1rem; margin-bottom: 8px;">No matchups match the selected status filter.</p>
+        <p style="font-size: 0.85rem;">Try switching the filter to "All Matchups" above.</p>
+      </div>
+    `;
+    resultsSection.style.display = 'block';
+    resultsSection.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
 
   fixtures.forEach(m => {
     const playedGames = m.games.filter(g => g.winner).length;
@@ -642,6 +914,119 @@ function renderFixtures() {
   });
 }
 
+// Tab 5: Daily Matches Log
+function populateDailyPlayerFilter() {
+  const sel = document.getElementById('dailyPlayerFilter');
+  if (!sel) return;
+  const curr = sel.value;
+  sel.innerHTML = '<option value="all">All Players</option>';
+  state.players.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+  if (curr && state.players.includes(curr)) sel.value = curr;
+}
+
+function renderDailyMatches() {
+  const container = document.getElementById('dailyMatchesContainer');
+  const dateInput = document.getElementById('dailyDatePicker');
+  const playerFilter = document.getElementById('dailyPlayerFilter');
+  const countBadge = document.getElementById('dailyMatchCount');
+  if (!container || !dateInput) return;
+
+  const targetDate = dateInput.value;
+  const targetPlayer = playerFilter ? playerFilter.value : 'all';
+
+  if (!targetDate) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-muted); background: rgba(0,0,0,0.2); border-radius: 12px;">
+        <p style="font-size: 1.1rem; margin-bottom: 8px;">Please select a date to view games played on that day.</p>
+      </div>
+    `;
+    if (countBadge) countBadge.textContent = '0 Games Played';
+    return;
+  }
+
+  // Find all games played on targetDate
+  const dailyGames = [];
+  state.matches.forEach(m => {
+    m.games.forEach(g => {
+      if (g.winner && g.played_date === targetDate) {
+        // Player filter
+        const t1Members = getPairMembers(m.team1);
+        const t2Members = getPairMembers(m.team2);
+        const allMatchPlayers = [...t1Members, ...t2Members];
+
+        if (targetPlayer === 'all' || allMatchPlayers.includes(targetPlayer)) {
+          dailyGames.push({ match: m, game: g });
+        }
+      }
+    });
+  });
+
+  if (countBadge) {
+    countBadge.textContent = `${dailyGames.length} Game${dailyGames.length !== 1 ? 's' : ''} Played`;
+  }
+
+  if (dailyGames.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-muted); background: rgba(0,0,0,0.2); border-radius: 12px;">
+        <p style="font-size: 1.1rem; margin-bottom: 8px;">No games recorded for <strong>${targetDate}</strong>${targetPlayer !== 'all' ? ` for player ${targetPlayer}` : ''}.</p>
+        <p style="font-size: 0.85rem;">Check "3 Nov 2026" or select another date.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = '';
+  dailyGames.forEach(({ match: m, game: g }) => {
+    const card = document.createElement('div');
+    card.className = 'matchup-card';
+
+    const t1Norm = normalizePair(m.team1);
+    const t2Norm = normalizePair(m.team2);
+    const winNorm = normalizePair(g.winner);
+    const t1Won = (winNorm === t1Norm);
+    const t2Won = (winNorm === t2Norm);
+
+    card.innerHTML = `
+      <div class="matchup-header">
+        <span class="matchup-number">Match #${m.id} - Game ${g.game_num}</span>
+        <span class="matchup-status-badge status-completed">Completed</span>
+      </div>
+
+      <div class="teams-vs-container">
+        <div class="team-box ${t1Won ? 'winner' : ''}">
+          <div class="team-name">${m.team1}</div>
+          <div class="team-wins-count" style="font-size: 1.1rem; font-weight: 800; color: ${t1Won ? 'var(--accent-emerald)' : 'var(--text-muted)'};">
+            ${g.t1_score} pts
+          </div>
+        </div>
+        <div class="vs-divider">VS</div>
+        <div class="team-box ${t2Won ? 'winner' : ''}">
+          <div class="team-name">${m.team2}</div>
+          <div class="team-wins-count" style="font-size: 1.1rem; font-weight: 800; color: ${t2Won ? 'var(--accent-emerald)' : 'var(--text-muted)'};">
+            ${g.t2_score} pts
+          </div>
+        </div>
+      </div>
+
+      <div class="games-list" style="margin-top: 14px;">
+        <div class="game-row" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+          <span class="game-title">🏆 Winner</span>
+          <span class="game-result" style="color: #34d399; font-weight: 700;">${g.winner}</span>
+        </div>
+      </div>
+
+      ${m.note ? `<div class="muted" style="margin-top: 10px; font-size: 0.75rem;">Note: ${m.note}</div>` : ''}
+    `;
+
+    container.appendChild(card);
+  });
+}
+
 // Add New Player Engine
 function handleAddPlayer(e) {
   e.preventDefault();
@@ -761,9 +1146,16 @@ function handleSaveScore(e) {
   const game = match.games.find(g => g.game_num === gameNum);
   if (!game) return;
 
+  // Auto-record current date (ISO YYYY-MM-DD)
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const nowIso = now.toISOString();
+
   game.t1_score = s1;
   game.t2_score = s2;
   game.winner = winner;
+  game.played_date = todayStr;
+  game.played_at = nowIso;
 
   if (notes) {
     match.note = notes;
@@ -792,7 +1184,7 @@ function handleSaveScore(e) {
     match.status = 'Not started';
   }
 
-  saveData();
+  saveGameScoreNormalized(match, game);
   document.getElementById('scoreModal').classList.remove('open');
   renderAll();
 
@@ -802,7 +1194,62 @@ function handleSaveScore(e) {
     find4PlayerMatchups();
   }
 
-  showToast(`Score recorded: ${winner} won (${s1} - ${s2})!`);
+  // Refresh daily tab if open
+  renderDailyMatches();
+
+  showToast(`Score recorded: ${winner} won (${s1} - ${s2}) on ${todayStr}!`);
+}
+
+// Targeted row update for normalized Supabase schema
+async function saveGameScoreNormalized(match, game) {
+  saveLocalData();
+
+  if (supabaseClient) {
+    try {
+      updateSyncStatus('saving', 'Saving game...');
+      
+      // Update specific game row
+      const { error: gameErr } = await supabaseClient
+        .from('games')
+        .upsert({
+          match_id: match.id,
+          game_num: game.game_num,
+          winner: game.winner,
+          t1_score: game.t1_score,
+          t2_score: game.t2_score,
+          played_date: game.played_date,
+          played_at: game.played_at,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'match_id,game_num' });
+
+      // Update match row summary
+      const { error: matchErr } = await supabaseClient
+        .from('matches')
+        .update({
+          team1_wins: match.team1_wins,
+          team2_wins: match.team2_wins,
+          status: match.status,
+          note: match.note || ''
+        })
+        .eq('id', match.id);
+
+      // Also mirror to monolithic tournament backup
+      supabaseClient
+        .from('tournament')
+        .upsert({ id: TOURNAMENT_ROW_ID, data: state, updated_at: new Date().toISOString() })
+        .then(() => {});
+
+      if (gameErr || matchErr) {
+        console.warn('Normalized table write note:', gameErr || matchErr);
+        updateSyncStatus('live', 'Saved (Local + Backup)');
+      } else {
+        updateSyncStatus('live', 'Live Cloud Sync');
+      }
+    } catch (err) {
+      console.error('Error saving score to Supabase:', err);
+      updateSyncStatus('offline', 'Offline (Saved locally)');
+    }
+  }
 }
 
 // Toast helper
@@ -861,9 +1308,10 @@ function setupEventListeners() {
       // Update titles
       const titles = {
         leaderboard: ['Tournament Leaderboard', 'Live statistics and rankings for singles players and pairs'],
-        finder: ["Today's Matchup Finder", 'Select 4 players on court to see their 3 possible pairings & pending games'],
+        finder: ["Today's Court Matchup Finder", 'Select present players (4 or more) to see all possible doubles combinations & pending games'],
         players: ['Player Roster & Management', 'View player records or register new tournament entrants'],
-        fixtures: ['Tournament Fixtures & Score Recorder', 'Browse all 3-game matchups and enter game results']
+        fixtures: ['Tournament Fixtures & Score Recorder', 'Browse all 3-game matchups and enter game results'],
+        daily: ['Daily Match Log', 'View all games played on any tournament day with scores and winners']
       };
       if (titles[btn.dataset.tab]) {
         document.getElementById('pageTitle').textContent = titles[btn.dataset.tab][0];
@@ -890,16 +1338,52 @@ function setupEventListeners() {
 
   // Matchup Finder
   document.getElementById('findMatchupsBtn').addEventListener('click', find4PlayerMatchups);
+  document.getElementById('selectAllFinderBtn').addEventListener('click', () => {
+    state.players.forEach(p => finderSelectedPlayers.add(p));
+    updateFinderSelectionUI();
+  });
   document.getElementById('clearFinderBtn').addEventListener('click', () => {
-    ['finderP1', 'finderP2', 'finderP3', 'finderP4'].forEach(id => document.getElementById(id).value = '');
+    finderSelectedPlayers.clear();
+    updateFinderSelectionUI();
     document.getElementById('finderResults').style.display = 'none';
   });
+  const statusFilterEl = document.getElementById('finderStatusFilter');
+  if (statusFilterEl) {
+    statusFilterEl.addEventListener('change', () => {
+      const finderResults = document.getElementById('finderResults');
+      if (finderResults.style.display !== 'none') {
+        find4PlayerMatchups();
+      }
+    });
+  }
 
   // Fixtures
   document.getElementById('fixtureSearch').addEventListener('input', () => { fixturePage = 1; renderFixtures(); });
   document.getElementById('fixtureStatusFilter').addEventListener('change', () => { fixturePage = 1; renderFixtures(); });
   document.getElementById('prevPageBtn').addEventListener('click', () => { if (fixturePage > 1) { fixturePage--; renderFixtures(); } });
   document.getElementById('nextPageBtn').addEventListener('click', () => { fixturePage++; renderFixtures(); });
+
+  // Daily Log
+  const dailyDatePicker = document.getElementById('dailyDatePicker');
+  if (dailyDatePicker) {
+    // Default to today's date
+    dailyDatePicker.value = new Date().toISOString().slice(0, 10);
+    dailyDatePicker.addEventListener('change', renderDailyMatches);
+  }
+  const dailyPlayerFilter = document.getElementById('dailyPlayerFilter');
+  if (dailyPlayerFilter) {
+    dailyPlayerFilter.addEventListener('change', renderDailyMatches);
+  }
+  const todayBtn = document.getElementById('todayDateBtn');
+  if (todayBtn) {
+    todayBtn.addEventListener('click', () => {
+      const dp = document.getElementById('dailyDatePicker');
+      if (dp) {
+        dp.value = new Date().toISOString().slice(0, 10);
+        renderDailyMatches();
+      }
+    });
+  }
 
   // Add player form
   document.getElementById('addPlayerForm').addEventListener('submit', handleAddPlayer);

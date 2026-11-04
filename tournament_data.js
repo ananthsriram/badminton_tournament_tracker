@@ -190,15 +190,15 @@ const INITIAL_TOURNAMENT_DATA = {
       "id": 7,
       "team1": "Goutham & Mastaan",
       "team2": "Mohan & Arvind",
-      "team1_wins": 0,
+      "team1_wins": 1,
       "team2_wins": 0,
-      "status": "Not started",
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Goutham & Mastaan",
+          "t1_score": 21,
+          "t2_score": 12
         },
         {
           "game_num": 2,
@@ -255,8 +255,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mastaan & Mohan",
-          "t1_score": 16,
-          "t2_score": 14
+          "t1_score": 14,
+          "t2_score": 16
         },
         {
           "game_num": 2,
@@ -719,8 +719,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mohan & Suman",
-          "t1_score": 21,
-          "t2_score": 17
+          "t1_score": 17,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -1189,8 +1189,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 2,
           "winner": "Arvind & Suman",
-          "t1_score": 21,
-          "t2_score": 13
+          "t1_score": 13,
+          "t2_score": 21
         },
         {
           "game_num": 3,
@@ -1444,8 +1444,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mastaan & Suman",
-          "t1_score": 21,
-          "t2_score": 12
+          "t1_score": 12,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -1995,8 +1995,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mastaan & Arvind",
-          "t1_score": 29,
-          "t2_score": 27
+          "t1_score": 27,
+          "t2_score": 29
         },
         {
           "game_num": 2,
@@ -2894,8 +2894,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Cittarasu & Suman",
-          "t1_score": 21,
-          "t2_score": 16
+          "t1_score": 16,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -2952,8 +2952,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Arvind & Cittarasu",
-          "t1_score": 23,
-          "t2_score": 21
+          "t1_score": 21,
+          "t2_score": 23
         },
         {
           "game_num": 2,
@@ -3097,8 +3097,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Arvind & Suman",
-          "t1_score": 21,
-          "t2_score": 18
+          "t1_score": 18,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -3119,15 +3119,15 @@ const INITIAL_TOURNAMENT_DATA = {
       "id": 108,
       "team1": "Mastaan & Suman",
       "team2": "Arvind & Ananth",
-      "team1_wins": 0,
+      "team1_wins": 1,
       "team2_wins": 0,
-      "status": "Not started",
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Mastaan & Suman",
+          "t1_score": 21,
+          "t2_score": 10
         },
         {
           "game_num": 2,
@@ -3445,8 +3445,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Punith & Suman",
-          "t1_score": 22,
-          "t2_score": 20
+          "t1_score": 20,
+          "t2_score": 22
         },
         {
           "game_num": 2,
@@ -4988,8 +4988,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 2,
           "winner": "Arvind & Suman",
-          "t1_score": 21,
-          "t2_score": 16
+          "t1_score": 16,
+          "t2_score": 21
         },
         {
           "game_num": 3,
@@ -5011,8 +5011,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mohan & Suman",
-          "t1_score": 21,
-          "t2_score": 14
+          "t1_score": 14,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -5533,8 +5533,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mohan & Suman",
-          "t1_score": 23,
-          "t2_score": 21
+          "t1_score": 21,
+          "t2_score": 23
         },
         {
           "game_num": 2,
@@ -6055,8 +6055,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mohan & Arvind",
-          "t1_score": 21,
-          "t2_score": 13
+          "t1_score": 13,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -6774,14 +6774,14 @@ const INITIAL_TOURNAMENT_DATA = {
       "team1": "Arvind & Sekhar",
       "team2": "Goutham & Mohan",
       "team1_wins": 0,
-      "team2_wins": 0,
-      "status": "Not started",
+      "team2_wins": 1,
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Goutham & Mohan",
+          "t1_score": 23,
+          "t2_score": 25
         },
         {
           "game_num": 2,
@@ -7360,8 +7360,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Goutham & Suman",
-          "t1_score": 21,
-          "t2_score": 17
+          "t1_score": 17,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -7476,8 +7476,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Goutham & Arvind",
-          "t1_score": 21,
-          "t2_score": 15
+          "t1_score": 15,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -8346,8 +8346,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mastaan & Mohan",
-          "t1_score": 21,
-          "t2_score": 13
+          "t1_score": 13,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -8775,14 +8775,14 @@ const INITIAL_TOURNAMENT_DATA = {
       "team1": "Ananth & Sekhar",
       "team2": "Mastaan & Arvind",
       "team1_wins": 0,
-      "team2_wins": 0,
-      "status": "Not started",
+      "team2_wins": 1,
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Mastaan & Arvind",
+          "t1_score": 14,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -9187,8 +9187,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mastaan & Suman",
-          "t1_score": 21,
-          "t2_score": 16
+          "t1_score": 16,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -9738,8 +9738,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mohan & Arvind",
-          "t1_score": 21,
-          "t2_score": 17
+          "t1_score": 17,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -9993,14 +9993,14 @@ const INITIAL_TOURNAMENT_DATA = {
       "team1": "Suman & Sekhar",
       "team2": "Mohan & Ananth",
       "team1_wins": 0,
-      "team2_wins": 0,
-      "status": "Not started",
+      "team2_wins": 1,
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Mohan & Ananth",
+          "t1_score": 19,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -10115,8 +10115,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Arvind & Ananth",
-          "t1_score": 21,
-          "t2_score": 10
+          "t1_score": 10,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -10202,8 +10202,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Arvind & Cittarasu",
-          "t1_score": 21,
-          "t2_score": 11
+          "t1_score": 11,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -10231,8 +10231,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Punith & Cittarasu",
-          "t1_score": 21,
-          "t2_score": 13
+          "t1_score": 13,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -10840,8 +10840,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Arvind & Suman",
-          "t1_score": 21,
-          "t2_score": 18
+          "t1_score": 18,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -11182,14 +11182,14 @@ const INITIAL_TOURNAMENT_DATA = {
       "team1": "Mastaan & Bobbin",
       "team2": "Goutham & Arvind",
       "team1_wins": 0,
-      "team2_wins": 0,
-      "status": "Not started",
+      "team2_wins": 1,
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Goutham & Arvind",
+          "t1_score": 10,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -11965,14 +11965,14 @@ const INITIAL_TOURNAMENT_DATA = {
       "team1": "Mohan & Bobbin",
       "team2": "Goutham & Suman",
       "team1_wins": 0,
-      "team2_wins": 0,
-      "status": "Not started",
+      "team2_wins": 1,
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Goutham & Suman",
+          "t1_score": 13,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -12022,15 +12022,15 @@ const INITIAL_TOURNAMENT_DATA = {
       "id": 415,
       "team1": "Goutham & Bobbin",
       "team2": "Mohan & Sekhar",
-      "team1_wins": 0,
+      "team1_wins": 1,
       "team2_wins": 0,
-      "status": "Not started",
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Goutham & Bobbin",
+          "t1_score": 24,
+          "t2_score": 22
         },
         {
           "game_num": 2,
@@ -12174,8 +12174,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Goutham & Punith",
-          "t1_score": 21,
-          "t2_score": 11
+          "t1_score": 11,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -13015,8 +13015,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Goutham & Suman",
-          "t1_score": 21,
-          "t2_score": 14
+          "t1_score": 14,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -14233,8 +14233,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Mastaan & Suman",
-          "t1_score": 21,
-          "t2_score": 14
+          "t1_score": 14,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -14552,8 +14552,8 @@ const INITIAL_TOURNAMENT_DATA = {
         {
           "game_num": 1,
           "winner": "Arvind & Suman",
-          "t1_score": 21,
-          "t2_score": 19
+          "t1_score": 19,
+          "t2_score": 21
         },
         {
           "game_num": 2,
@@ -18170,15 +18170,15 @@ const INITIAL_TOURNAMENT_DATA = {
       "id": 627,
       "team1": "Sekhar & Bobbin",
       "team2": "Ananth & Suman",
-      "team1_wins": 0,
+      "team1_wins": 1,
       "team2_wins": 0,
-      "status": "Not started",
+      "status": "1 of 3 played",
       "games": [
         {
           "game_num": 1,
-          "winner": "",
-          "t1_score": null,
-          "t2_score": null
+          "winner": "Sekhar & Bobbin",
+          "t1_score": 21,
+          "t2_score": 19
         },
         {
           "game_num": 2,

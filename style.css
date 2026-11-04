@@ -1,3 +1,39 @@
+.sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  letter-spacing: 0.03em;
+  transition: all 0.3s ease;
+}
+
+.sync-badge.sync-live {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.sync-badge.sync-connecting {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.sync-badge.sync-saving {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.sync-badge.sync-offline {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+}
+
 :root {
   --bg-primary: #0b0f19;
   --bg-secondary: #131b2e;
@@ -496,9 +532,104 @@ select:focus {
   margin-bottom: 30px;
 }
 
+.selection-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .selection-card h3 {
   font-size: 1.1rem;
-  margin-bottom: 16px;
+  margin-bottom: 0;
+}
+
+.selection-counter {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: rgba(59, 130, 246, 0.12);
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.player-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.player-chip:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text-main);
+  background-color: var(--bg-card-hover);
+}
+
+.player-chip.selected {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-color: #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.player-chip .chip-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.player-chip.selected .chip-check {
+  background-color: #ffffff;
+  border-color: #ffffff;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.finder-status-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.finder-status-filter-row select {
+  padding: 6px 12px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 8px;
+  font-size: 0.85rem;
 }
 
 .player-selectors-grid {
