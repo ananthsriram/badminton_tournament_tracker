@@ -647,17 +647,24 @@ function updateFinderSelectionCount() {
   const countEl = document.getElementById('finderSelectedCount');
   if (!countEl) return;
   const count = finderSelectedPlayers.size;
+  const courtsEl = document.getElementById('finderCourtsAvailable');
+  const courts = courtsEl ? Number(courtsEl.value) : 1;
+
   if (count < 4) {
     countEl.textContent = `${count} selected (select at least 4)`;
     countEl.style.color = 'var(--accent-amber)';
   } else {
-    // Calculate total matchups: C(n, 4) * 3
-    // C(n, 4) = n * (n-1) * (n-2) * (n-3) / 24
-    const n = count;
-    const fourCombos = (n * (n - 1) * (n - 2) * (n - 3)) / 24;
-    const totalMatchups = fourCombos * 3;
-    countEl.textContent = `${count} selected (${totalMatchups} possible matchups)`;
-    countEl.style.color = 'var(--accent-primary)';
+    const playersNeededPerRound = courts * 4;
+    const canFillCourts = count >= playersNeededPerRound;
+    if (canFillCourts) {
+      const resting = count - playersNeededPerRound;
+      countEl.textContent = `${count} selected • Can fill ${courts} court${courts > 1 ? 's' : ''} (${resting > 0 ? `${resting} resting per round` : 'all active!'})`;
+      countEl.style.color = 'var(--accent-emerald)';
+    } else {
+      const activeCourts = Math.floor(count / 4);
+      countEl.textContent = `${count} selected • Can fill ${activeCourts} court${activeCourts > 1 ? 's' : ''} (${count % 4} resting)`;
+      countEl.style.color = 'var(--accent-primary)';
+    }
   }
 }
 
@@ -669,152 +676,308 @@ function find4PlayerMatchups() {
     return;
   }
 
-  // Generate all 4-player subsets C(n, 4)
-  const subsetsOf4 = [];
-  function getSubsets(arr, k, start = 0, current = []) {
-    if (current.length === k) {
-      subsetsOf4.push([...current]);
-      return;
+  const courtsInput = document.getElementById('finderCourtsAvailable');
+  const targetMatchesInput = document.getElementById('finderTargetMatches');
+  const statusFilterEl = document.getElementById('finderStatusFilter');
+
+  const courts = courtsInput ? Number(courtsInput.value) : 1;
+  const targetMatchesVal = targetMatchesInput ? targetMatchesInput.value : '6';
+  const statusFilter = statusFilterEl ? statusFilterEl.value : 'pending';
+
+  // 1. Gather all tournament matches involving ONLY the chosen present players
+  const chosenSet = new Set(chosen);
+  const eligibleMatches = [];
+
+  state.matches.forEach(m => {
+    const t1Members = getPairMembers(m.team1);
+    const t2Members = getPairMembers(m.team2);
+    const mPlayers = [...t1Members, ...t2Members];
+
+    // Must be subset of present players
+    if (mPlayers.every(p => chosenSet.has(p))) {
+      const playedCount = m.games.filter(g => g.winner).length;
+      const pendingCount = 3 - playedCount;
+
+      if (statusFilter === 'pending' && pendingCount === 0) return;
+      if (statusFilter === 'not_started' && playedCount > 0) return;
+
+      eligibleMatches.push({
+        match: m,
+        players: new Set(mPlayers),
+        playerList: mPlayers,
+        pendingCount,
+        playedCount
+      });
     }
-    for (let i = start; i < arr.length; i++) {
-      current.push(arr[i]);
-      getSubsets(arr, k, i + 1, current);
-      current.pop();
-    }
+  });
+
+  if (eligibleMatches.length === 0) {
+    renderEmptySchedule('No matching matches found for the selected players and filter.');
+    return;
   }
-  getSubsets(chosen, 4);
 
-  // For each 4-player subset {A, B, C, D}, generate the 3 doubles matchups:
-  // 1) (A & B) vs (C & D)
-  // 2) (A & C) vs (B & D)
-  // 3) (A & D) vs (B & C)
-  const matchedFixtures = [];
-  const seenMatchIds = new Set();
+  // If user selected "All Combinations (Raw)", render traditional grid
+  if (targetMatchesVal === 'all') {
+    renderFinderResultsRaw(eligibleMatches.map(e => e.match), eligibleMatches.length, chosen.length);
+    return;
+  }
 
-  subsetsOf4.forEach(four => {
-    const [A, B, C, D] = four;
-    const combinations = [
-      { team1: normalizePair(`${A} & ${B}`), team2: normalizePair(`${C} & ${D}`) },
-      { team1: normalizePair(`${A} & ${C}`), team2: normalizePair(`${B} & ${D}`) },
-      { team1: normalizePair(`${A} & ${D}`), team2: normalizePair(`${B} & ${C}`) }
-    ];
+  // 2. Conflict-Free Court Round Scheduler
+  // Each round places up to `courts` matches that are completely disjoint in players!
+  const targetTotalMatches = Number(targetMatchesVal) || 10;
+  const maxCourtsToFill = Math.min(courts, Math.floor(chosen.length / 4));
+  const courtsPerRound = Math.max(1, maxCourtsToFill);
+  const roundsNeeded = Math.ceil(targetTotalMatches / courtsPerRound);
 
-    combinations.forEach(combo => {
-      const match = state.matches.find(m => {
-        const m1 = normalizePair(m.team1);
-        const m2 = normalizePair(m.team2);
-        return (m1 === combo.team1 && m2 === combo.team2) || (m1 === combo.team2 && m2 === combo.team1);
+  const rounds = [];
+  const usedMatchIds = new Set();
+  const playerGameCounts = {};
+  chosen.forEach(p => playerGameCounts[p] = 0);
+
+  // Sorting helper: prioritize pending games and players who have played fewer games today
+  function getMatchWeight(mObj) {
+    const workloadScore = mObj.playerList.reduce((acc, p) => acc + (playerGameCounts[p] || 0), 0);
+    // Lower workload = higher priority; higher pending count = higher priority
+    return workloadScore * 10 - mObj.pendingCount * 2;
+  }
+
+  for (let r = 0; r < roundsNeeded; r++) {
+    const roundMatches = [];
+    const playersInThisRound = new Set();
+
+    // Fill each available court for this round
+    for (let c = 0; c < courtsPerRound; c++) {
+      // Find candidate match:
+      // - not used in this session yet
+      // - has no player intersection with anyone already scheduled in this round!
+      const availableCandidates = eligibleMatches.filter(mObj => {
+        if (usedMatchIds.has(mObj.match.id)) return false;
+        // Check zero player collision in this round
+        for (const p of mObj.players) {
+          if (playersInThisRound.has(p)) return false;
+        }
+        return true;
       });
 
-      if (match && !seenMatchIds.has(match.id)) {
-        seenMatchIds.add(match.id);
-        matchedFixtures.push(match);
+      if (availableCandidates.length === 0) {
+        // If we ran out of fresh unused matches, allow reusing matches that still have pending games left
+        const reuseCandidates = eligibleMatches.filter(mObj => {
+          if (mObj.pendingCount <= 1) return false;
+          for (const p of mObj.players) {
+            if (playersInThisRound.has(p)) return false;
+          }
+          return true;
+        });
+
+        if (reuseCandidates.length > 0) {
+          reuseCandidates.sort((a, b) => getMatchWeight(a) - getMatchWeight(b));
+          const chosenM = reuseCandidates[0];
+          roundMatches.push({ ...chosenM, courtNum: c + 1 });
+          chosenM.players.forEach(p => {
+            playersInThisRound.add(p);
+            playerGameCounts[p] = (playerGameCounts[p] || 0) + 1;
+          });
+          usedMatchIds.add(chosenM.match.id);
+        }
+        continue;
       }
-    });
-  });
 
-  // Filter based on status dropdown
-  const statusFilterEl = document.getElementById('finderStatusFilter');
-  const statusFilter = statusFilterEl ? statusFilterEl.value : 'all';
+      availableCandidates.sort((a, b) => getMatchWeight(a) - getMatchWeight(b));
+      const bestMatch = availableCandidates[0];
 
-  const filteredFixtures = matchedFixtures.filter(m => {
-    const played = m.games.filter(g => g.winner).length;
-    if (statusFilter === 'pending') return played < 3;
-    if (statusFilter === 'completed') return played === 3;
-    if (statusFilter === 'not_started') return played === 0;
-    return true;
-  });
+      roundMatches.push({ ...bestMatch, courtNum: c + 1 });
+      bestMatch.players.forEach(p => {
+        playersInThisRound.add(p);
+        playerGameCounts[p] = (playerGameCounts[p] || 0) + 1;
+      });
+      usedMatchIds.add(bestMatch.match.id);
 
-  renderFinderResults(filteredFixtures, matchedFixtures.length, chosen.length);
+      if (usedMatchIds.size >= targetTotalMatches) break;
+    }
+
+    if (roundMatches.length > 0) {
+      const restingPlayers = chosen.filter(p => !playersInThisRound.has(p));
+      rounds.push({
+        roundNum: r + 1,
+        matches: roundMatches,
+        activePlayers: Array.from(playersInThisRound),
+        restingPlayers
+      });
+    }
+
+    if (usedMatchIds.size >= targetTotalMatches) break;
+  }
+
+  renderScheduledRounds(rounds, playerGameCounts, courts, chosen.length);
 }
 
-function renderFinderResults(fixtures, totalFound = fixtures.length, playerCount = 4) {
+function renderEmptySchedule(message) {
+  const container = document.getElementById('matchupCardsContainer');
+  const resultsSection = document.getElementById('finderResults');
+  const countBadge = document.getElementById('finderMatchCount');
+  const workloadBar = document.getElementById('finderWorkloadBar');
+  const subtitle = document.getElementById('finderResultsSubtitle');
+
+  if (countBadge) countBadge.textContent = '0 Matches';
+  if (subtitle) subtitle.textContent = message;
+  if (workloadBar) workloadBar.style.display = 'none';
+
+  container.innerHTML = `
+    <div style="grid-column: 1 / -1; padding: 40px; text-align: center; background: rgba(0,0,0,0.2); border-radius: 12px; color: var(--text-muted);">
+      <p style="font-size: 1.1rem; margin-bottom: 8px;">${message}</p>
+      <p style="font-size: 0.85rem;">Try selecting more players or changing the filter options.</p>
+    </div>
+  `;
+  resultsSection.style.display = 'block';
+  resultsSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderScheduledRounds(rounds, playerGameCounts, courts, totalPlayers) {
   const container = document.getElementById('matchupCardsContainer');
   const resultsSection = document.getElementById('finderResults');
   const countBadge = document.getElementById('finderMatchCount');
   const subtitle = document.getElementById('finderResultsSubtitle');
-  container.innerHTML = '';
+  const workloadBar = document.getElementById('finderWorkloadBar');
+
+  const totalMatchesScheduled = rounds.reduce((acc, r) => acc + r.matches.length, 0);
 
   if (countBadge) {
-    countBadge.textContent = `${fixtures.length} Matchup${fixtures.length !== 1 ? 's' : ''}`;
+    countBadge.textContent = `${totalMatchesScheduled} Matches Scheduled`;
   }
 
   if (subtitle) {
-    subtitle.textContent = `Showing ${fixtures.length} of ${totalFound} total doubles matchups among ${playerCount} present players.`;
+    subtitle.textContent = `${rounds.length} Conflict-Free Rounds for ${totalPlayers} players across ${courts} court${courts > 1 ? 's' : ''}. Zero player collisions.`;
   }
 
-  if (fixtures.length === 0) {
-    container.innerHTML = `
-      <div style="grid-column: 1 / -1; padding: 30px; text-align: center; background: rgba(0,0,0,0.2); border-radius: 12px; color: var(--text-muted);">
-        <p style="font-size: 1.1rem; margin-bottom: 8px;">No matchups match the selected status filter.</p>
-        <p style="font-size: 0.85rem;">Try switching the filter to "All Matchups" above.</p>
-      </div>
-    `;
-    resultsSection.style.display = 'block';
-    resultsSection.scrollIntoView({ behavior: 'smooth' });
-    return;
+  // Workload summary pills
+  if (workloadBar) {
+    let pillsHtml = '<span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-right: 4px;">Player Session Load:</span>';
+    Object.entries(playerGameCounts).forEach(([name, count]) => {
+      pillsHtml += `
+        <div class="workload-pill">
+          <span>${name}</span>
+          <span class="pill-count">${count} game${count !== 1 ? 's' : ''}</span>
+        </div>
+      `;
+    });
+    workloadBar.innerHTML = pillsHtml;
+    workloadBar.style.display = 'flex';
   }
+
+  container.innerHTML = '';
+
+  rounds.forEach(r => {
+    // Round Header Banner
+    const banner = document.createElement('div');
+    banner.className = 'round-header-banner';
+    const restingText = r.restingPlayers.length > 0 
+      ? `☕ Resting: ${r.restingPlayers.join(', ')}` 
+      : '🔥 All players active on court!';
+
+    banner.innerHTML = `
+      <h4><span>⏱️ Round ${r.roundNum}</span> <span class="round-sub">(${r.matches.length} Court${r.matches.length > 1 ? 's' : ''} simultaneous)</span></h4>
+      <span class="round-sub" style="font-weight: 600; color: ${r.restingPlayers.length > 0 ? 'var(--accent-amber)' : 'var(--accent-emerald)'};">${restingText}</span>
+    `;
+    container.appendChild(banner);
+
+    // Cards for each court in this round
+    let matchSeq = (r.roundNum - 1) * courts;
+    r.matches.forEach(mObj => {
+      matchSeq++;
+      const m = mObj.match;
+      const card = createFinderMatchCard(m, mObj.courtNum, r.roundNum, matchSeq);
+      container.appendChild(card);
+    });
+  });
+
+  resultsSection.style.display = 'block';
+  resultsSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function createFinderMatchCard(m, courtNum = null, roundNum = null, sessionSeq = null) {
+  const playedGames = m.games.filter(g => g.winner).length;
+  const pendingGames = 3 - playedGames;
+
+  let statusClass = 'status-notstarted';
+  let statusLabel = '3 Games Pending';
+  if (playedGames === 3) {
+    statusClass = 'status-completed';
+    statusLabel = 'Completed (3/3)';
+  } else if (playedGames > 0) {
+    statusClass = 'status-progress';
+    statusLabel = `${playedGames} of 3 Played (${pendingGames} Left)`;
+  }
+
+  const card = document.createElement('div');
+  card.className = `matchup-card ${pendingGames > 0 ? 'pending-highlight' : ''}`;
+
+  let gamesHtml = '';
+  m.games.forEach(g => {
+    if (g.winner) {
+      gamesHtml += `
+        <div class="game-row">
+          <span class="game-title">Game ${g.game_num}</span>
+          <span class="game-result">Winner: <strong style="color: #34d399;">${g.winner}</strong> (${g.t1_score} - ${g.t2_score})</span>
+        </div>
+      `;
+    } else {
+      gamesHtml += `
+        <div class="game-row" style="border: 1px dashed rgba(255,255,255,0.15);">
+          <span class="game-title">Game ${g.game_num} (Ready to play)</span>
+          <button class="game-action-btn" onclick="openScoreModal(${m.id}, ${g.game_num})">🏸 Record Game</button>
+        </div>
+      `;
+    }
+  });
+
+  const courtTag = courtNum ? `<span class="court-badge-tag">Court ${courtNum}</span>` : '';
+  const seqTag = sessionSeq 
+    ? `<span style="font-weight: 800; font-size: 0.95rem; color: var(--text-main); margin-right: 8px;">Game ${sessionSeq} of Session</span> <span class="muted" style="font-size: 0.8rem;">(Fixture #${m.id})</span>`
+    : `<span class="matchup-number">Match #${m.id}</span>`;
+
+  card.innerHTML = `
+    <div class="matchup-header">
+      <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+        ${courtTag}
+        ${seqTag}
+      </div>
+      <span class="matchup-status-badge ${statusClass}">${statusLabel}</span>
+    </div>
+
+    <div class="teams-vs-container">
+      <div class="team-box ${m.team1_wins > m.team2_wins ? 'winner' : ''}">
+        <div class="team-name">${m.team1}</div>
+        <div class="team-wins-count">${m.team1_wins} wins</div>
+      </div>
+      <div class="vs-divider">VS</div>
+      <div class="team-box ${m.team2_wins > m.team1_wins ? 'winner' : ''}">
+        <div class="team-name">${m.team2}</div>
+        <div class="team-wins-count">${m.team2_wins} wins</div>
+      </div>
+    </div>
+
+    <div class="games-list">
+      ${gamesHtml}
+    </div>
+  `;
+
+  return card;
+}
+
+function renderFinderResultsRaw(fixtures, totalFound = fixtures.length, playerCount = 4) {
+  const container = document.getElementById('matchupCardsContainer');
+  const resultsSection = document.getElementById('finderResults');
+  const countBadge = document.getElementById('finderMatchCount');
+  const subtitle = document.getElementById('finderResultsSubtitle');
+  const workloadBar = document.getElementById('finderWorkloadBar');
+  container.innerHTML = '';
+
+  if (workloadBar) workloadBar.style.display = 'none';
+  if (countBadge) countBadge.textContent = `${fixtures.length} Matchup${fixtures.length !== 1 ? 's' : ''}`;
+  if (subtitle) subtitle.textContent = `Showing all ${fixtures.length} raw possible doubles combinations for ${playerCount} present players.`;
 
   fixtures.forEach(m => {
-    const playedGames = m.games.filter(g => g.winner).length;
-    const pendingGames = 3 - playedGames;
-
-    let statusClass = 'status-notstarted';
-    let statusLabel = '3 Games Pending';
-    if (playedGames === 3) {
-      statusClass = 'status-completed';
-      statusLabel = 'Completed (3/3)';
-    } else if (playedGames > 0) {
-      statusClass = 'status-progress';
-      statusLabel = `${playedGames} of 3 Played (${pendingGames} Left)`;
-    }
-
-    const card = document.createElement('div');
-    card.className = `matchup-card ${pendingGames > 0 ? 'pending-highlight' : ''}`;
-
-    let gamesHtml = '';
-    m.games.forEach(g => {
-      if (g.winner) {
-        gamesHtml += `
-          <div class="game-row">
-            <span class="game-title">Game ${g.game_num}</span>
-            <span class="game-result">Winner: <strong style="color: #34d399;">${g.winner}</strong> (${g.t1_score} - ${g.t2_score})</span>
-          </div>
-        `;
-      } else {
-        gamesHtml += `
-          <div class="game-row" style="border: 1px dashed rgba(255,255,255,0.15);">
-            <span class="game-title">Game ${g.game_num} (Ready to play)</span>
-            <button class="game-action-btn" onclick="openScoreModal(${m.id}, ${g.game_num})">🏸 Record Game</button>
-          </div>
-        `;
-      }
-    });
-
-    card.innerHTML = `
-      <div class="matchup-header">
-        <span class="matchup-number">Match #${m.id}</span>
-        <span class="matchup-status-badge ${statusClass}">${statusLabel}</span>
-      </div>
-
-      <div class="teams-vs-container">
-        <div class="team-box ${m.team1_wins > m.team2_wins ? 'winner' : ''}">
-          <div class="team-name">${m.team1}</div>
-          <div class="team-wins-count">${m.team1_wins} wins</div>
-        </div>
-        <div class="vs-divider">VS</div>
-        <div class="team-box ${m.team2_wins > m.team1_wins ? 'winner' : ''}">
-          <div class="team-name">${m.team2}</div>
-          <div class="team-wins-count">${m.team2_wins} wins</div>
-        </div>
-      </div>
-
-      <div class="games-list">
-        ${gamesHtml}
-      </div>
-      ${m.note ? `<div class="muted" style="margin-top: 10px; font-size: 0.75rem;">Note: ${m.note}</div>` : ''}
-    `;
-
+    const card = createFinderMatchCard(m);
     container.appendChild(card);
   });
 
@@ -1118,8 +1281,8 @@ window.openScoreModal = function(matchId, gameNum) {
   // Preset if already played
   const game = match.games.find(g => g.game_num === gameNum);
   if (game && game.winner) {
-    document.getElementById('team1Score').value = game.t1_score || '';
-    document.getElementById('team2Score').value = game.t2_score || '';
+    document.getElementById('team1Score').value = game.t1_score !== null ? game.t1_score : '';
+    document.getElementById('team2Score').value = game.t2_score !== null ? game.t2_score : '';
     document.getElementById('modalWinnerSelect').value = game.winner;
   } else {
     document.getElementById('team1Score').value = '';
@@ -1127,21 +1290,56 @@ window.openScoreModal = function(matchId, gameNum) {
     document.getElementById('modalWinnerSelect').value = '';
   }
 
-  document.getElementById('modalGameNotes').value = match.note || '';
+  // Keep notes clean and empty for new entries
+  document.getElementById('modalGameNotes').value = '';
   modal.classList.add('open');
 };
+
+// Auto-determine game winner from entered scores to eliminate manual error
+function autoSelectGameWinner() {
+  const s1Val = document.getElementById('team1Score').value.trim();
+  const s2Val = document.getElementById('team2Score').value.trim();
+  const winnerSelect = document.getElementById('modalWinnerSelect');
+  const opt1 = document.getElementById('modalOptTeam1');
+  const opt2 = document.getElementById('modalOptTeam2');
+
+  if (s1Val === '' || s2Val === '') {
+    return;
+  }
+
+  const s1 = Number(s1Val);
+  const s2 = Number(s2Val);
+
+  if (s1 > s2) {
+    winnerSelect.value = opt1.value;
+  } else if (s2 > s1) {
+    winnerSelect.value = opt2.value;
+  } else {
+    // Scores are tied (in-progress or invalid final score)
+    winnerSelect.value = '';
+  }
+}
 
 function handleSaveScore(e) {
   e.preventDefault();
   const matchId = Number(document.getElementById('modalMatchId').value);
   const gameNum = Number(document.getElementById('modalGameNum').value);
-  const s1 = Number(document.getElementById('team1Score').value);
-  const s2 = Number(document.getElementById('team2Score').value);
-  const winner = document.getElementById('modalWinnerSelect').value;
+  const s1Val = document.getElementById('team1Score').value.trim();
+  const s2Val = document.getElementById('team2Score').value.trim();
+  const s1 = Number(s1Val);
+  const s2 = Number(s2Val);
   const notes = document.getElementById('modalGameNotes').value.trim();
 
   const match = state.matches.find(m => m.id === matchId);
   if (!match) return;
+
+  if (s1 === s2) {
+    alert('Scores cannot be tied in badminton. Please enter the final winning score (e.g., 21-19).');
+    return;
+  }
+
+  // Determine winner automatically based on score
+  const winner = s1 > s2 ? match.team1 : match.team2;
 
   const game = match.games.find(g => g.game_num === gameNum);
   if (!game) return;
@@ -1347,11 +1545,33 @@ function setupEventListeners() {
     updateFinderSelectionUI();
     document.getElementById('finderResults').style.display = 'none';
   });
+
+  const courtsInput = document.getElementById('finderCourtsAvailable');
+  if (courtsInput) {
+    courtsInput.addEventListener('change', () => {
+      updateFinderSelectionCount();
+      const finderResults = document.getElementById('finderResults');
+      if (finderResults && finderResults.style.display !== 'none') {
+        find4PlayerMatchups();
+      }
+    });
+  }
+
+  const targetMatchesInput = document.getElementById('finderTargetMatches');
+  if (targetMatchesInput) {
+    targetMatchesInput.addEventListener('change', () => {
+      const finderResults = document.getElementById('finderResults');
+      if (finderResults && finderResults.style.display !== 'none') {
+        find4PlayerMatchups();
+      }
+    });
+  }
+
   const statusFilterEl = document.getElementById('finderStatusFilter');
   if (statusFilterEl) {
     statusFilterEl.addEventListener('change', () => {
       const finderResults = document.getElementById('finderResults');
-      if (finderResults.style.display !== 'none') {
+      if (finderResults && finderResults.style.display !== 'none') {
         find4PlayerMatchups();
       }
     });
@@ -1390,6 +1610,10 @@ function setupEventListeners() {
   document.getElementById('closeDetailBtn').addEventListener('click', () => {
     document.getElementById('playerDetailCard').style.display = 'none';
   });
+
+  // Score Inputs auto-winner listener
+  document.getElementById('team1Score').addEventListener('input', autoSelectGameWinner);
+  document.getElementById('team2Score').addEventListener('input', autoSelectGameWinner);
 
   // Modal
   document.getElementById('recordGameForm').addEventListener('submit', handleSaveScore);

@@ -632,6 +632,113 @@ select:focus {
   font-size: 0.85rem;
 }
 
+.finder-scheduler-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 20px;
+}
+
+.finder-scheduler-controls-grid .control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.finder-scheduler-controls-grid .control-field label {
+  font-size: 0.85rem;
+  color: var(--text-main);
+}
+
+.finder-scheduler-controls-grid select {
+  padding: 10px 14px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.finder-scheduler-controls-grid select:focus {
+  border-color: var(--accent-primary);
+}
+
+.finder-workload-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 10px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.workload-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-card);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+}
+
+.workload-pill .pill-count {
+  background: var(--accent-primary);
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+}
+
+.round-header-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.25), rgba(16, 185, 129, 0.15));
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  padding: 10px 18px;
+  border-radius: 10px;
+  margin-top: 14px;
+}
+
+.round-header-banner h4 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.round-header-banner .round-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.court-badge-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--accent-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
 .player-selectors-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

@@ -171,13 +171,13 @@
       <!-- TAB 2: MATCHUP FINDER -->
       <section id="tab-finder" class="tab-pane">
         <div class="card intro-card">
-          <h2>🎯 Today's Court Matchup Finder</h2>
-          <p>Select the players present on court (select <strong>4 or more</strong> players). The system will generate <strong>all possible doubles matchups</strong> among them, showing games played, score details, and highlighting <strong>pending tournament games</strong> ready to be played!</p>
+          <h2>🎯 Today's Court Matchup & Session Scheduler</h2>
+          <p>Select the players present today, specify how many courts you have, and how many matches you want to play. The algorithm will automatically schedule <strong>conflict-free rounds</strong> with pending tournament games so all courts stay busy with zero player collisions!</p>
         </div>
 
         <div class="card selection-card">
           <div class="selection-card-header">
-            <h3>Select Present Players</h3>
+            <h3>1. Select Present Players</h3>
             <span class="selection-counter" id="finderSelectedCount">0 players selected (min 4)</span>
           </div>
           
@@ -185,32 +185,70 @@
             <!-- Injected by JS: Interactive player chips -->
           </div>
 
-          <div class="finder-status-filter-row">
-            <label for="finderStatusFilter"><strong>Show:</strong></label>
-            <select id="finderStatusFilter" class="form-select-sm">
-              <option value="all">All Matchups</option>
-              <option value="pending" selected>Pending Games Available Only</option>
-              <option value="completed">Completed Only</option>
-              <option value="not_started">Not Started (0/3 Played) Only</option>
-            </select>
+          <div class="finder-scheduler-controls-grid">
+            <div class="control-field">
+              <label for="finderCourtsAvailable"><strong>🏟️ Courts Available:</strong></label>
+              <select id="finderCourtsAvailable" class="form-select-sm">
+                <option value="1" selected>1 Court (4 players/round)</option>
+                <option value="2">2 Courts (8 players/round)</option>
+                <option value="3">3 Courts (12 players/round)</option>
+                <option value="4">4 Courts (16 players/round)</option>
+              </select>
+            </div>
+
+            <div class="control-field">
+              <label for="finderTargetMatches"><strong>🏸 Total Matches to Schedule:</strong></label>
+              <select id="finderTargetMatches" class="form-select-sm">
+                <option value="4">4 Matches</option>
+                <option value="5">5 Matches</option>
+                <option value="6" selected>6 Matches</option>
+                <option value="7">7 Matches</option>
+                <option value="8">8 Matches</option>
+                <option value="9">9 Matches</option>
+                <option value="10">10 Matches</option>
+                <option value="11">11 Matches</option>
+                <option value="12">12 Matches</option>
+                <option value="13">13 Matches</option>
+                <option value="14">14 Matches</option>
+                <option value="15">15 Matches</option>
+                <option value="16">16 Matches</option>
+                <option value="17">17 Matches</option>
+                <option value="18">18 Matches</option>
+                <option value="19">19 Matches</option>
+                <option value="20">20 Matches</option>
+                <option value="all">All Combinations (Raw)</option>
+              </select>
+            </div>
+
+            <div class="control-field">
+              <label for="finderStatusFilter"><strong>📋 Match Status Filter:</strong></label>
+              <select id="finderStatusFilter" class="form-select-sm">
+                <option value="pending" selected>Pending Tournament Games First</option>
+                <option value="not_started">Unplayed (0/3) Only</option>
+                <option value="all">Include Completed Also</option>
+              </select>
+            </div>
           </div>
 
-          <div class="selection-actions">
-            <button id="findMatchupsBtn" class="btn-primary">⚡ Generate Matchups</button>
-            <button id="selectAllFinderBtn" class="btn-secondary">Select All</button>
+          <div class="selection-actions" style="margin-top: 20px;">
+            <button id="findMatchupsBtn" class="btn-primary">⚡ Generate Court Schedule</button>
+            <button id="selectAllFinderBtn" class="btn-secondary">Select All Players</button>
             <button id="clearFinderBtn" class="btn-secondary">Clear All</button>
           </div>
         </div>
 
-        <!-- Results of Combinations -->
+        <!-- Results Section -->
         <div id="finderResults" class="finder-results-section" style="display: none;">
           <div class="section-header">
             <div>
-              <h3>Possible Doubles Matchups for Selected Players</h3>
+              <h3 id="finderResultsTitle">Scheduled Matches for Today's Courts</h3>
               <p class="section-subtitle" id="finderResultsSubtitle" style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;"></p>
             </div>
-            <span class="badge" id="finderMatchCount">0 Matchups</span>
+            <span class="badge" id="finderMatchCount">0 Matches</span>
           </div>
+
+          <!-- Schedule summary pills for player workload -->
+          <div id="finderWorkloadBar" class="finder-workload-bar" style="display: none;"></div>
 
           <div class="matchup-cards-grid" id="matchupCardsContainer">
             <!-- Injected by JS -->
@@ -343,7 +381,7 @@
         </div>
 
         <div class="form-group" style="margin-top: 16px;">
-          <label>Game Winner</label>
+          <label>Game Winner <span style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: normal;">(Auto-selected from scores)</span></label>
           <select id="modalWinnerSelect" required>
             <option value="">-- Choose Winner --</option>
             <option id="modalOptTeam1" value="team1">Team 1</option>
