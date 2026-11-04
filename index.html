@@ -26,6 +26,10 @@
           <span class="icon">🏆</span>
           <span class="label">Leaderboard</span>
         </button>
+        <button class="nav-item" data-tab="quickscore">
+          <span class="icon">⚡</span>
+          <span class="label">Quick Score</span>
+        </button>
         <button class="nav-item" data-tab="finder">
           <span class="icon">🎯</span>
           <span class="label">Matchup Finder</span>
@@ -344,6 +348,120 @@
 
         <div class="matchup-cards-grid" id="dailyMatchesContainer">
           <!-- Injected by JS -->
+        </div>
+      </section>
+
+      <!-- TAB 6: QUICK SCORE ENTRY -->
+      <section id="tab-quickscore" class="tab-pane">
+        <div class="card intro-card">
+          <h2>⚡ Quick Score Entry</h2>
+          <p>Record a match in seconds! Pick the 4 players on court, enter the final scores, and the winning team and leaderboard are automatically updated.</p>
+        </div>
+
+        <div class="card quick-score-card">
+          <form id="quickScoreForm">
+            <!-- 4 Players Selection -->
+            <div class="quick-score-teams-grid">
+              <!-- Team 1 -->
+              <div class="quick-team-box team-1-box">
+                <div class="quick-team-header">
+                  <span class="team-badge badge-blue">Team 1</span>
+                  <span class="quick-team-resolved" id="quickTeam1Resolved">Select 2 players</span>
+                </div>
+                <div class="quick-player-selects">
+                  <div class="control-field">
+                    <label for="qsP1">Player 1</label>
+                    <select id="qsP1" class="form-select-sm" required>
+                      <option value="">-- Choose Player 1 --</option>
+                    </select>
+                  </div>
+                  <div class="control-field">
+                    <label for="qsP2">Player 2</label>
+                    <select id="qsP2" class="form-select-sm" required>
+                      <option value="">-- Choose Player 2 --</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="quick-vs-badge">VS</div>
+
+              <!-- Team 2 -->
+              <div class="quick-team-box team-2-box">
+                <div class="quick-team-header">
+                  <span class="team-badge badge-emerald">Team 2</span>
+                  <span class="quick-team-resolved" id="quickTeam2Resolved">Select 2 players</span>
+                </div>
+                <div class="quick-player-selects">
+                  <div class="control-field">
+                    <label for="qsP3">Player 3</label>
+                    <select id="qsP3" class="form-select-sm" required>
+                      <option value="">-- Choose Player 3 --</option>
+                    </select>
+                  </div>
+                  <div class="control-field">
+                    <label for="qsP4">Player 4</label>
+                    <select id="qsP4" class="form-select-sm" required>
+                      <option value="">-- Choose Player 4 --</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match Status Info Banner -->
+            <div id="quickMatchStatusBanner" class="quick-match-status-banner" style="display: none;">
+              <!-- Injected by JS: shows Match #, games played so far, and next game num -->
+            </div>
+
+            <!-- Game Num & Score Inputs -->
+            <div class="quick-score-input-section">
+              <div class="control-field" style="max-width: 200px;">
+                <label for="qsGameNum"><strong>Select Game:</strong></label>
+                <select id="qsGameNum" class="form-select-sm">
+                  <option value="1">Game 1</option>
+                  <option value="2">Game 2</option>
+                  <option value="3">Game 3</option>
+                </select>
+              </div>
+
+              <div class="quick-scores-row">
+                <div class="quick-score-input-box">
+                  <label id="qsTeam1ScoreLabel">Team 1 Score</label>
+                  <input type="number" id="qsTeam1Score" min="0" max="40" placeholder="0" required>
+                </div>
+                <span class="quick-score-dash">—</span>
+                <div class="quick-score-input-box">
+                  <label id="qsTeam2ScoreLabel">Team 2 Score</label>
+                  <input type="number" id="qsTeam2Score" min="0" max="40" placeholder="0" required>
+                </div>
+              </div>
+
+              <!-- Winner Auto Detection Banner -->
+              <div id="qsWinnerBanner" class="qs-winner-banner">
+                <span class="qs-winner-label">🏆 Game Winner:</span>
+                <span id="qsWinnerName" class="qs-winner-name">Enter scores above to auto-detect winner</span>
+              </div>
+
+              <!-- Notes Field (Modern Boxed Design) -->
+              <div class="qs-notes-group">
+                <label for="qsNotes" class="qs-notes-label">
+                  <span>📝 Match Notes</span>
+                  <span class="qs-notes-optional">(Optional)</span>
+                </label>
+                <div class="qs-notes-input-wrap">
+                  <input type="text" id="qsNotes" class="qs-notes-input" placeholder="e.g. Intense deuce finish at 22-20, played on Court 2">
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <div class="quick-submit-actions">
+                <button type="submit" id="qsSubmitBtn" class="btn-primary" style="padding: 14px 28px; font-size: 1rem; font-weight: 700; width: 100%;">
+                  ⚡ Save Score & Update Leaderboard
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       </section>
     </main>

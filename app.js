@@ -376,6 +376,7 @@ function renderAll() {
   renderPairsLeaderboard(stats.pairs);
   renderRoster(stats.players);
   populateFinderDropdowns();
+  populateQuickScorePlayerDropdowns();
   renderFixtures();
   populateDailyPlayerFilter();
   renderDailyMatches();
@@ -1190,6 +1191,302 @@ function renderDailyMatches() {
   });
 }
 
+// Quick Score Entry Engine
+let currentQuickMatch = null;
+
+function populateQuickScorePlayerDropdowns() {
+  const ids = ['qsP1', 'qsP2', 'qsP3', 'qsP4'];
+  const players = [...state.players].sort((a, b) => a.localeCompare(b));
+
+  ids.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const currentVal = sel.value;
+    sel.innerHTML = `<option value="">-- Choose ${sel.previousElementSibling.textContent} --</option>`;
+    players.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      sel.appendChild(opt);
+    });
+    if (currentVal && players.includes(currentVal)) {
+      sel.value = currentVal;
+    }
+  });
+
+  updateQuickScoreMatchResolution();
+}
+
+function updateQuickScoreMatchResolution() {
+  const p1 = document.getElementById('qsP1')?.value;
+  const p2 = document.getElementById('qsP2')?.value;
+  const p3 = document.getElementById('qsP3')?.value;
+  const p4 = document.getElementById('qsP4')?.value;
+
+  const t1Label = document.getElementById('quickTeam1Resolved');
+  const t2Label = document.getElementById('quickTeam2Resolved');
+  const statusBanner = document.getElementById('quickMatchStatusBanner');
+  const gameSelect = document.getElementById('qsGameNum');
+  const t1ScoreLabel = document.getElementById('qsTeam1ScoreLabel');
+  const t2ScoreLabel = document.getElementById('qsTeam2ScoreLabel');
+
+  if (p1 && p2) {
+    t1Label.textContent = `${p1} & ${p2}`;
+    if (t1ScoreLabel) t1ScoreLabel.textContent = `${p1} & ${p2}`;
+  } else {
+    t1Label.textContent = 'Select 2 players';
+    if (t1ScoreLabel) t1ScoreLabel.textContent = 'Team 1 Score';
+  }
+
+  if (p3 && p4) {
+    t2Label.textContent = `${p3} & ${p4}`;
+    if (t2ScoreLabel) t2ScoreLabel.textContent = `${p3} & ${p4}`;
+  } else {
+    t2Label.textContent = 'Select 2 players';
+    if (t2ScoreLabel) t2ScoreLabel.textContent = 'Team 2 Score';
+  }
+
+  // Check if all 4 are selected
+  if (!p1 || !p2 || !p3 || !p4) {
+    currentQuickMatch = null;
+    if (statusBanner) statusBanner.style.display = 'none';
+    autoDetectQuickScoreWinner();
+    return;
+  }
+
+  // Validate duplicate player selections
+  const chosenPlayers = [p1, p2, p3, p4];
+  const uniquePlayers = new Set(chosenPlayers);
+  if (uniquePlayers.size < 4) {
+    currentQuickMatch = null;
+    if (statusBanner) {
+      statusBanner.style.display = 'block';
+      statusBanner.innerHTML = `
+        <div style="color: var(--accent-rose); font-weight: 700;">
+          ⚠️ Duplicate player selected! A player cannot play against themselves or be on both teams.
+        </div>
+      `;
+    }
+    autoDetectQuickScoreWinner();
+    return;
+  }
+
+  // Normalize pairs and find tournament match
+  const t1Norm = normalizePair(`${p1} & ${p2}`);
+  const t2Norm = normalizePair(`${p3} & ${p4}`);
+
+  const match = state.matches.find(m => {
+    const m1 = normalizePair(m.team1);
+    const m2 = normalizePair(m.team2);
+    return (m1 === t1Norm && m2 === t2Norm) || (m1 === t2Norm && m2 === t1Norm);
+  });
+
+  if (!match) {
+    currentQuickMatch = null;
+    if (statusBanner) {
+      statusBanner.style.display = 'block';
+      statusBanner.innerHTML = `
+        <div style="color: var(--accent-amber); font-weight: 600;">
+          ℹ️ No fixture found for these 4 players. Please ensure these players are registered.
+        </div>
+      `;
+    }
+    autoDetectQuickScoreWinner();
+    return;
+  }
+
+  currentQuickMatch = match;
+
+  // Find next unplayed game number
+  let nextGameNum = 1;
+  const unplayedGame = match.games.find(g => !g.winner);
+  if (unplayedGame) {
+    nextGameNum = unplayedGame.game_num;
+  } else {
+    nextGameNum = 3;
+  }
+
+  // Update Game select dropdown if not manually altered
+  if (gameSelect) {
+    gameSelect.value = String(nextGameNum);
+  }
+
+  // Render match status banner
+  const playedCount = match.games.filter(g => g.winner).length;
+  let historyHtml = '';
+  match.games.forEach(g => {
+    if (g.winner) {
+      historyHtml += `
+        <span style="display: inline-block; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 6px; margin-top: 4px;">
+          Game ${g.game_num}: <strong style="color: #34d399;">${g.winner}</strong> (${g.t1_score}-${g.t2_score})
+        </span>
+      `;
+    }
+  });
+
+  statusBanner.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <span style="font-weight: 800; color: var(--accent-primary); font-size: 1rem;">Fixture #${match.id}</span>
+        <span style="color: var(--text-muted); font-size: 0.85rem; margin-left: 8px;">(${match.team1} vs ${match.team2})</span>
+      </div>
+      <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700;">
+        ${playedCount}/3 Games Completed
+      </span>
+    </div>
+    ${historyHtml ? `<div style="margin-top: 8px;">${historyHtml}</div>` : '<div class="muted" style="font-size: 0.8rem; margin-top: 6px;">No games recorded yet between these two pairs. Ready for Game 1!</div>'}
+  `;
+  statusBanner.style.display = 'block';
+
+  autoDetectQuickScoreWinner();
+}
+
+function autoDetectQuickScoreWinner() {
+  const s1Val = document.getElementById('qsTeam1Score')?.value.trim();
+  const s2Val = document.getElementById('qsTeam2Score')?.value.trim();
+  const winnerNameEl = document.getElementById('qsWinnerName');
+  if (!winnerNameEl) return;
+
+  const p1 = document.getElementById('qsP1')?.value;
+  const p2 = document.getElementById('qsP2')?.value;
+  const p3 = document.getElementById('qsP3')?.value;
+  const p4 = document.getElementById('qsP4')?.value;
+
+  const t1Name = (p1 && p2) ? `${p1} & ${p2}` : 'Team 1';
+  const t2Name = (p3 && p4) ? `${p3} & ${p4}` : 'Team 2';
+
+  if (!s1Val || !s2Val) {
+    winnerNameEl.textContent = 'Enter scores above to auto-detect winner';
+    winnerNameEl.style.color = 'var(--text-muted)';
+    return;
+  }
+
+  const s1 = Number(s1Val);
+  const s2 = Number(s2Val);
+
+  if (s1 > s2) {
+    winnerNameEl.textContent = `${t1Name} wins (${s1} - ${s2})`;
+    winnerNameEl.style.color = '#34d399';
+  } else if (s2 > s1) {
+    winnerNameEl.textContent = `${t2Name} wins (${s2} - ${s1})`;
+    winnerNameEl.style.color = '#34d399';
+  } else {
+    winnerNameEl.textContent = '⚠️ Scores are tied. Badminton games cannot end in a tie.';
+    winnerNameEl.style.color = 'var(--accent-amber)';
+  }
+}
+
+function handleSaveQuickScore(e) {
+  e.preventDefault();
+  const p1 = document.getElementById('qsP1').value;
+  const p2 = document.getElementById('qsP2').value;
+  const p3 = document.getElementById('qsP3').value;
+  const p4 = document.getElementById('qsP4').value;
+  const s1Val = document.getElementById('qsTeam1Score').value.trim();
+  const s2Val = document.getElementById('qsTeam2Score').value.trim();
+  const gameNum = Number(document.getElementById('qsGameNum').value);
+  const notes = document.getElementById('qsNotes').value.trim();
+
+  if (!p1 || !p2 || !p3 || !p4) {
+    alert('Please select all 4 players (2 players for Team 1 and 2 players for Team 2).');
+    return;
+  }
+
+  const unique = new Set([p1, p2, p3, p4]);
+  if (unique.size < 4) {
+    alert('Duplicate player found. All 4 players on court must be distinct.');
+    return;
+  }
+
+  if (!s1Val || !s2Val) {
+    alert('Please enter both team scores.');
+    return;
+  }
+
+  const s1 = Number(s1Val);
+  const s2 = Number(s2Val);
+
+  if (s1 === s2) {
+    alert('Scores cannot be tied. Please enter the final winning score.');
+    return;
+  }
+
+  // Ensure match is resolved
+  const t1Norm = normalizePair(`${p1} & ${p2}`);
+  const t2Norm = normalizePair(`${p3} & ${p4}`);
+
+  const match = state.matches.find(m => {
+    const m1 = normalizePair(m.team1);
+    const m2 = normalizePair(m.team2);
+    return (m1 === t1Norm && m2 === t2Norm) || (m1 === t2Norm && m2 === t1Norm);
+  });
+
+  if (!match) {
+    alert('No tournament matchup found for these 4 players.');
+    return;
+  }
+
+  const game = match.games.find(g => g.game_num === gameNum);
+  if (!game) {
+    alert(`Game ${gameNum} not found in this fixture.`);
+    return;
+  }
+
+  // Align scores with match.team1 and match.team2
+  // Check if user selected team1 in exact match.team1 order or reversed
+  const matchT1Norm = normalizePair(match.team1);
+  const isUserTeam1MatchTeam1 = (t1Norm === matchT1Norm);
+
+  const finalT1Score = isUserTeam1MatchTeam1 ? s1 : s2;
+  const finalT2Score = isUserTeam1MatchTeam1 ? s2 : s1;
+  const winningTeam = s1 > s2 ? `${p1} & ${p2}` : `${p3} & ${p4}`;
+
+  // Store in standard canonical team format
+  const winnerCanonical = isUserTeam1MatchTeam1 
+    ? (s1 > s2 ? match.team1 : match.team2)
+    : (s2 > s1 ? match.team1 : match.team2);
+
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+
+  game.t1_score = finalT1Score;
+  game.t2_score = finalT2Score;
+  game.winner = winnerCanonical;
+  game.played_date = todayStr;
+  game.played_at = now.toISOString();
+
+  if (notes) {
+    match.note = notes;
+  }
+
+  // Recalculate match team wins and status
+  let t1Wins = 0;
+  let t2Wins = 0;
+  let played = 0;
+  match.games.forEach(g => {
+    if (g.winner) {
+      played++;
+      if (normalizePair(g.winner) === normalizePair(match.team1)) t1Wins++;
+      else if (normalizePair(g.winner) === normalizePair(match.team2)) t2Wins++;
+    }
+  });
+
+  match.team1_wins = t1Wins;
+  match.team2_wins = t2Wins;
+  match.status = (played === 3) ? 'Completed' : (played > 0 ? `${played} of 3 played` : 'Not started');
+
+  saveGameScoreNormalized(match, game);
+  renderAll();
+
+  // Reset score inputs and notes
+  document.getElementById('qsTeam1Score').value = '';
+  document.getElementById('qsTeam2Score').value = '';
+  document.getElementById('qsNotes').value = '';
+
+  updateQuickScoreMatchResolution();
+  showToast(`⚡ Recorded! ${winningTeam} won Game ${gameNum} (${s1} - ${s2})`);
+}
+
 // Add New Player Engine
 function handleAddPlayer(e) {
   e.preventDefault();
@@ -1506,6 +1803,7 @@ function setupEventListeners() {
       // Update titles
       const titles = {
         leaderboard: ['Tournament Leaderboard', 'Live statistics and rankings for singles players and pairs'],
+        quickscore: ['⚡ Quick Score Entry', 'Instantly record match scores by selecting 4 players on court'],
         finder: ["Today's Court Matchup Finder", 'Select present players (4 or more) to see all possible doubles combinations & pending games'],
         players: ['Player Roster & Management', 'View player records or register new tournament entrants'],
         fixtures: ['Tournament Fixtures & Score Recorder', 'Browse all 3-game matchups and enter game results'],
@@ -1610,6 +1908,21 @@ function setupEventListeners() {
   document.getElementById('closeDetailBtn').addEventListener('click', () => {
     document.getElementById('playerDetailCard').style.display = 'none';
   });
+
+  // Quick Score Listeners
+  const qsInputs = ['qsP1', 'qsP2', 'qsP3', 'qsP4'];
+  qsInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateQuickScoreMatchResolution);
+  });
+
+  const qsScore1 = document.getElementById('qsTeam1Score');
+  const qsScore2 = document.getElementById('qsTeam2Score');
+  if (qsScore1) qsScore1.addEventListener('input', autoDetectQuickScoreWinner);
+  if (qsScore2) qsScore2.addEventListener('input', autoDetectQuickScoreWinner);
+
+  const qsForm = document.getElementById('quickScoreForm');
+  if (qsForm) qsForm.addEventListener('submit', handleSaveQuickScore);
 
   // Score Inputs auto-winner listener
   document.getElementById('team1Score').addEventListener('input', autoSelectGameWinner);
